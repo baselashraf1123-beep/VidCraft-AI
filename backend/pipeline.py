@@ -283,7 +283,7 @@ def _pixabay(q: str, path: Path, used: set) -> Optional[dict]:
 
 _STOP = {"facts", "fact", "about", "amazing", "tips", "best", "top", "video", "new", "idea", "invitation", "share",
          "energy", "concept", "symbolic", "person", "people", "with", "from", "that", "this", "your"}
-_BAD_TITLE = re.compile(r"\b(map|factbook|flag|logo|diagram|stamp|manuscript|letter|cemetery|poster|coat of arms|scan|page|book|newspaper|document|impact|climate|chart|graph|report|figure|infographic|table|painting|drawing|sketch|engraving|illustration|efta\d+|porsche|macan|car|cars|auto|motor|metallic|bmw|audi|toyota|honda|ford|truck|bus|phone|laptop|wallpaper|screenshot|cover|album|song|film|movie|band|football|player)\b")
+_BAD_TITLE = re.compile(r"\b(map|factbook|flag|logo|diagram|stamp|manuscript|letter|cemetery|poster|coat of arms|scan|page|book|newspaper|document|impact|climate|chart|graph|report|figure|infographic|table|painting|drawing|sketch|engraving|illustration|efta\d+|porsche|macan|car|cars|auto|motor|metallic|bmw|audi|toyota|honda|ford|truck|bus|phone|laptop|wallpaper|screenshot|cover|album|song|film|movie|band|football|player|xbox|playstation|nintendo|controller|gamepad|console|joystick|game|games|video game|icon|symbol|svg|template|banner|screenshot|sticker|emoji|avatar|portrait of|signature|seal|crest|emblem)\b")
 _OK_LICENSE = ("public domain", "cc0", "cc by", "cc-by", "pd")
 WM_HEADERS = {"User-Agent": "VidCraftAI/1.0 (https://vidcraft.app; contact@vidcraft.app)"}
 
