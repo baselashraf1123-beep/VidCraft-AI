@@ -70,20 +70,33 @@ def _extract_json(text: str):
         return json.loads(_repair_json(raw))
 
 
+_GEMINI_MODELS = ("gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash")
+
+
 def _gemini(prompt: str) -> Optional[str]:
+    """Gemini (free tier key). Tries several models; JSON output requested. Returns None on any failure."""
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         return None
-    try:
-        r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-            json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.9}},
-            timeout=45,
-        )
-        r.raise_for_status()
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:  # noqa: BLE001
-        return None
+    for model in _GEMINI_MODELS:
+        try:
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers={"x-goog-api-key": key},
+                json={"contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": 0.9, "responseMimeType": "application/json"}},
+                timeout=60,
+            )
+            if r.status_code in (404, 429, 503):
+                continue
+            r.raise_for_status()
+            parts = r.json()["candidates"][0]["content"]["parts"]
+            txt = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+            if txt.strip():
+                return txt
+        except Exception:  # noqa: BLE001
+            continue
+    return None
 
 
 _LLM_LOCK = threading.Lock()
@@ -182,21 +195,72 @@ def _fallback_script(idea: str, language: str, scenes: int) -> dict:
 
 
 # --------------------------------------------------------------------------- voice
-async def _tts(text: str, voice: str, out: Path, rate: str):
+async def _tts(text: str, voice: str, out: Path, rate: str) -> list:
+    """Synthesize speech; returns word timings [(start_s, end_s, word)] from edge-tts WordBoundary events."""
     last = None
     for _ in range(3):
         try:
-            await edge_tts.Communicate(text, voice, rate=rate).save(str(out))
-            if out.exists() and out.stat().st_size > 500:
-                return
+            words, chunks = [], bytearray()
+            comm = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
+            async for m in comm.stream():
+                if m["type"] == "audio":
+                    chunks += m["data"]
+                elif m["type"] == "WordBoundary":
+                    st = m["offset"] / 1e7
+                    words.append((st, st + m["duration"] / 1e7, m["text"]))
+            if len(chunks) > 500:
+                out.write_bytes(bytes(chunks))
+                return words
         except Exception as e:  # noqa: BLE001
             last = e
             await asyncio.sleep(1)
     raise PipelineError(f"TTS failed: {last}")
 
 
-def synth_voice(text: str, voice: str, out: Path, rate: str = "+0%"):
-    asyncio.run(_tts(text, voice, out, rate))
+def synth_voice(text: str, voice: str, out: Path, rate: str = "+0%") -> list:
+    return asyncio.run(_tts(text, voice, out, rate))
+
+
+def tighten_audio(path: Path, words: list, max_gap: float = 0.5, keep: float = 0.28) -> list:
+    """Shorten long internal pauses (TTS pauses ~1 s after '?' / '.') to `keep` seconds and
+    remap the word timings so subtitles stay in sync."""
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(path), "-af", "silencedetect=noise=-38dB:d=0.45", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    starts = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", r.stderr)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", r.stderr)]
+    total = probe_duration(path)
+    cuts = []  # (cut_from, cut_to) removed intervals
+    for st, en in zip(starts, ends):
+        if st < 0.3 or en >= total - 0.05 or en - st <= max_gap:
+            continue
+        side = keep / 2
+        cuts.append((st + side, en - side))
+    if not cuts:
+        return words
+    segs, prev = [], 0.0
+    for a, b in cuts:
+        segs.append((prev, a))
+        prev = b
+    segs.append((prev, total))
+    fc = "".join(f"[0:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS[s{i}];" for i, (a, b) in enumerate(segs))
+    fc += "".join(f"[s{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=0:a=1[o]"
+    tmp = path.with_suffix(".tight.mp3")
+    rr = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(path), "-filter_complex", fc, "-map", "[o]",
+                         "-c:a", "libmp3lame", "-b:a", "96k", str(tmp)], capture_output=True, text=True)
+    if rr.returncode != 0 or not tmp.exists():
+        return words
+    tmp.replace(path)
+
+    def remap(t: float) -> float:
+        off = 0.0
+        for a, b in cuts:
+            if t >= b:
+                off += b - a
+            elif t > a:
+                off += t - a
+        return t - off
+
+    return [(remap(a), remap(b), w) for a, b, w in words]
 
 
 def probe_duration(path: Path) -> float:
@@ -245,14 +309,17 @@ def _dl(url: str, path: Path, headers: Optional[dict] = None) -> bool:
     return False
 
 
-def _pexels(q: str, path: Path, used: set) -> Optional[dict]:
+def _pexels(q: str, path: Path, used: set, must: str = "") -> Optional[dict]:
+    """Pexels search; photos must be relevant: alt text has to mention `must` (topic word) when given."""
     key = os.getenv("PEXELS_API_KEY")
     if not key:
         return None
     try:
-        r = requests.get("https://api.pexels.com/v1/search", params={"query": q, "orientation": "portrait", "per_page": 15},
+        r = requests.get("https://api.pexels.com/v1/search", params={"query": q, "orientation": "portrait", "per_page": 30},
                          headers={"Authorization": key}, timeout=20)
         photos = [x for x in r.json().get("photos", []) if x["id"] not in used]
+        if must:
+            photos = [x for x in photos if must.lower() in (x.get("alt") or "").lower()]
         random.shuffle(photos)
         for ph in photos[:3]:
             if _dl(ph["src"]["large2x"], path):
@@ -349,7 +416,11 @@ def fetch_image(scene: dict, style: str, mode: str, path: Path, seed: int, used:
         chain.append(lambda: _pollinations(scene["visual"], style, path, seed))
     if tw:
         # every stock image must literally mention the video topic -> never off-topic
-        chain.append(lambda: _pexels(f"{tw} {q}", path, used))
+        chain.append(lambda: _pexels(f"{tw} {q}", path, used, must=tw))
+        for kw in q.split():
+            if len(kw) >= 4 and kw.lower() != tw.lower():
+                chain.append(lambda kw=kw: _pexels(f"{tw} {kw}", path, used, must=tw))
+        chain.append(lambda: _pexels(tw, path, used, must=tw))
         chain.append(lambda: _pixabay(f"{tw} {q}", path, used))
         chain.append(lambda: _wikimedia(f"{tw} {q}", path, used, must=tw))
         for kw in q.split():
@@ -390,7 +461,7 @@ def split_phrases(text: str, max_words: int = 4) -> list[str]:
     return out
 
 
-def build_ass(text: str, duration: float, path: Path, sub_color: str):
+def build_ass(text: str, duration: float, path: Path, sub_color: str, words: Optional[list] = None):
     phrases = split_phrases(text)
     weights = [max(len(p), 1) for p in phrases]
     total = sum(weights)
@@ -410,12 +481,19 @@ Style: Main,{FONT_NAME},58,&H00{bgr},&H00FFFFFF,&H00000000,&H96000000,1,0,0,0,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    t = 0.0
     lines = []
-    for p, wgt in zip(phrases, weights):
-        d = duration * wgt / total
-        lines.append(f"Dialogue: 0,{_ass_time(t)},{_ass_time(t + d)},Main,,0,0,0,,{p}")
-        t += d
+    if words:
+        groups = [words[i:i + 4] for i in range(0, len(words), 4)]
+        for gi, g in enumerate(groups):
+            st = g[0][0]
+            en = groups[gi + 1][0][0] if gi + 1 < len(groups) else duration
+            lines.append(f"Dialogue: 0,{_ass_time(max(st - 0.05, 0))},{_ass_time(en)},Main,,0,0,0,,{' '.join(w[2] for w in g)}")
+    else:
+        t = 0.0
+        for p, wgt in zip(phrases, weights):
+            d = duration * wgt / total
+            lines.append(f"Dialogue: 0,{_ass_time(t)},{_ass_time(t + d)},Main,,0,0,0,,{p}")
+            t += d
     path.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -485,8 +563,10 @@ def make_video(job_dir: Path, opts: dict, progress: ProgressCb) -> dict:
         base = 10 + int(75 * i / len(scenes))
         progress(base, f"المشهد {i + 1}/{len(scenes)}: توليد الصوت")
         audio = job_dir / f"a{i}.mp3"
-        synth_voice(sc["narration"], voice, audio, rate)
-        dur = probe_duration(audio) + 0.35
+        words = synth_voice(sc["narration"], voice, audio, rate)
+        words = tighten_audio(audio, words)
+        speech_end = max((w[1] for w in words), default=probe_duration(audio))
+        dur = min(speech_end + 0.30, probe_duration(audio))
 
         progress(base + 3, f"المشهد {i + 1}/{len(scenes)}: توليد الصورة")
         img = job_dir / f"i{i}.jpg"
@@ -497,7 +577,7 @@ def make_video(job_dir: Path, opts: dict, progress: ProgressCb) -> dict:
 
         progress(base + 7, f"المشهد {i + 1}/{len(scenes)}: المونتاج والترجمة")
         ass = job_dir / f"s{i}.ass"
-        build_ass(sc["narration"], dur, ass, sub_color)
+        build_ass(sc["narration"], dur, ass, sub_color, words)
         part = job_dir / f"p{i}.mp4"
         render_scene(img, audio, ass, dur, part, i)
         parts.append(part)
