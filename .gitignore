@@ -48,3 +48,8 @@ app.*.map.json
 backend/outputs/
 backend/__pycache__/
 backend/.env
+
+# Android signing (never commit)
+android/key.properties
+android/*.jks
+*.jks
