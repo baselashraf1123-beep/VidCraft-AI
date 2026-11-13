@@ -86,6 +86,17 @@ class Api {
               headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
           .timeout(_t);
       if (r.statusCode != 200) {
+        String? detail;
+        try {
+          final d = jsonDecode(utf8.decode(r.bodyBytes))['detail'];
+          if (d is String) detail = d;
+        } catch (_) {}
+        if (r.statusCode == 429 || r.statusCode == 503) {
+          throw ApiException(detail ?? 'الخادم مشغول حالياً، حاول بعد قليل.');
+        }
+        if (r.statusCode == 422) {
+          throw ApiException('بيانات الطلب غير صالحة، راجع الخيارات المحددة.');
+        }
         throw ApiException('تعذر بدء المهمة (${r.statusCode})');
       }
       return jsonDecode(r.body)['id'] as String;

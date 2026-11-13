@@ -540,6 +540,9 @@ def render_scene(img: Path, audio: Path, ass: Path, dur: float, out: Path, idx: 
     ], cwd=ass.parent)
 
 
+LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+
 def concat(parts: list[Path], out: Path, watermark: Optional[str]):
     lst = out.parent / "list.txt"
     lst.write_text("".join(f"file '{p.name}'\n" for p in parts))
@@ -550,9 +553,11 @@ def concat(parts: list[Path], out: Path, watermark: Optional[str]):
         wm.write_text(watermark, encoding="utf-8")
         vf = f"drawtext=textfile={wm.name}:fontfile={FONT_DIR / 'Tajawal-Bold.ttf'}:fontsize=30:fontcolor=white@0.7:x=w-tw-24:y=60:shadowcolor=black:shadowx=2:shadowy=2"
         _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged), "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
-              "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(out)], cwd=out.parent)
+              "-crf", "23", "-pix_fmt", "yuv420p", "-af", LOUDNORM, "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+              "-movflags", "+faststart", str(out)], cwd=out.parent)
     else:
-        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged), "-c", "copy", "-movflags", "+faststart", str(out)], cwd=out.parent)
+        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged), "-c:v", "copy", "-af", LOUDNORM, "-c:a", "aac",
+              "-b:a", "128k", "-ar", "44100", "-movflags", "+faststart", str(out)], cwd=out.parent)
 
 
 # --------------------------------------------------------------------------- orchestrator
