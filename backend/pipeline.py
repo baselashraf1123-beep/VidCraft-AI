@@ -150,7 +150,7 @@ Rules:
 - Exactly {scenes} scenes. Each scene narration is 1-2 short sentences (12-25 words), engaging, with a strong hook in scene 1 and a call-to-action in the last scene.
 - For each scene give "visual": an ENGLISH image-generation prompt (concrete subject, setting, mood; no text in image).
 - For each scene give "keywords": ONE single JSON string of 2-3 plain ENGLISH words separated by spaces (e.g. "glass water morning"). Concrete real-world objects only. Never use a list.
-- Also give top-level "topic": the overall subject as 1-2 plain ENGLISH nouns (e.g. "coffee", "volcano", "sleep").
+- Also give top-level "topic": the MAIN subject as ONE single plain ENGLISH noun that photographers would tag (e.g. "coffee", "volcano", "sleep", "water"). Never a generic word like health, benefits, tips, life.
 - Return ONLY valid JSON, no markdown:
 {{"title": "short title in the narration language", "topic": "...", "scenes": [{{"narration": "...", "visual": "...", "keywords": "..."}}]}}"""
     for _ in range(3):
@@ -261,6 +261,22 @@ def tighten_audio(path: Path, words: list, max_gap: float = 0.5, keep: float = 0
         return t - off
 
     return [(remap(a), remap(b), w) for a, b, w in words]
+
+
+def align_words(path: Path, words: list) -> list:
+    """edge-tts reports word boundaries ~0.15-0.2 s before the audible onset. Shift all timings so the
+    first word coincides with the real start of speech (measured from the audio itself)."""
+    if not words:
+        return words
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(path), "-af", "silencedetect=noise=-38dB:d=0.04", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    st = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", r.stderr)]
+    en = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", r.stderr)]
+    onset = en[0] if st and st[0] < 0.02 and en else 0.0
+    shift = onset - words[0][0]
+    if abs(shift) < 0.03 or shift > 0.6 or shift < -0.3:
+        return words
+    return [(a + shift, b + shift, w) for a, b, w in words]
 
 
 def probe_duration(path: Path) -> float:
@@ -410,7 +426,7 @@ def _pollinations(visual: str, style: str, path: Path, seed: int, patient: bool 
 
 def fetch_image(scene: dict, style: str, mode: str, path: Path, seed: int, used: set, topic: str = "") -> dict:
     q = scene.get("keywords") or scene["visual"]
-    tw = (topic.split() or [""])[-1] if topic else ""  # head noun of the topic, e.g. "coffee"
+    tw = (topic.split() or [""])[0] if topic else ""  # main subject = first noun of the topic, e.g. "sleep" in "sleep health"
     chain = []
     if mode == "ai":
         chain.append(lambda: _pollinations(scene["visual"], style, path, seed))
@@ -487,7 +503,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for gi, g in enumerate(groups):
             st = g[0][0]
             en = groups[gi + 1][0][0] if gi + 1 < len(groups) else duration
-            lines.append(f"Dialogue: 0,{_ass_time(max(st - 0.05, 0))},{_ass_time(en)},Main,,0,0,0,,{' '.join(w[2] for w in g)}")
+            lines.append(f"Dialogue: 0,{_ass_time(max(st, 0))},{_ass_time(en)},Main,,0,0,0,,{' '.join(w[2] for w in g)}")
     else:
         t = 0.0
         for p, wgt in zip(phrases, weights):
@@ -565,6 +581,7 @@ def make_video(job_dir: Path, opts: dict, progress: ProgressCb) -> dict:
         audio = job_dir / f"a{i}.mp3"
         words = synth_voice(sc["narration"], voice, audio, rate)
         words = tighten_audio(audio, words)
+        words = align_words(audio, words)
         speech_end = max((w[1] for w in words), default=probe_duration(audio))
         dur = min(speech_end + 0.30, probe_duration(audio))
 
