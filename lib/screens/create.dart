@@ -46,6 +46,7 @@ class _CreateScreenState extends State<CreateScreen> {
         'scenes': _scenes.round(),
         'rate': '${_rate >= 0 ? '+' : ''}${_rate.round()}%',
         'watermark': s.watermark ? 'VidCraft AI' : null,
+        'music': s.music,
       };
       final id = await s.api.createJob(body);
       if (!mounted) return;

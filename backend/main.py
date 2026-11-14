@@ -63,6 +63,7 @@ class JobReq(BaseModel):
     rate: str = "+0%"
     subtitle_color: str = "#FFFFFF"
     watermark: Optional[str] = Field("VidCraft AI", max_length=30)
+    music: bool = True
 
     @field_validator("voice")
     @classmethod

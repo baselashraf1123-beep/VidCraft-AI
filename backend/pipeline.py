@@ -543,21 +543,65 @@ def render_scene(img: Path, audio: Path, ass: Path, dur: float, out: Path, idx: 
 LOUDNORM = "loudnorm=I=-16:TP=-1.5:LRA=11"
 
 
-def concat(parts: list[Path], out: Path, watermark: Optional[str]):
-    lst = out.parent / "list.txt"
-    lst.write_text("".join(f"file '{p.name}'\n" for p in parts))
-    merged = out.parent / "merged.mp4"
-    _run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", str(merged)], cwd=out.parent)
+XF = 0.3  # cross-fade seconds between scenes
+
+
+def gen_music(dur: float, out: Path):
+    """Soft synthetic ambient pad (A-minor chord, slow tremolo, low-passed). Royalty free: generated locally."""
+    notes = [110.0, 220.0, 261.63, 329.63, 392.0]
+    ins: list[str] = []
+    for f in notes:
+        ins += ["-f", "lavfi", "-i", f"sine=f={f}:sample_rate=44100:duration={dur + 1:.2f}"]
+    fc = "".join(f"[{i}]volume=0.2[n{i}];" for i in range(len(notes)))
+    fc += "".join(f"[n{i}]" for i in range(len(notes))) + f"amix=inputs={len(notes)}:normalize=0,"
+    fc += f"tremolo=f=0.2:d=0.5,lowpass=f=900,aecho=0.8:0.6:700:0.3,afade=t=in:d=2,afade=t=out:st={max(dur - 2, 0):.2f}:d=2,aformat=channel_layouts=stereo[m]"
+    _run(["ffmpeg", "-y", "-loglevel", "error", *ins, "-filter_complex", fc, "-map", "[m]", "-t", f"{dur:.2f}", str(out)])
+
+
+def concat(parts: list[Path], out: Path, watermark: Optional[str], music: bool = True):
+    wd = out.parent
+    merged = wd / "merged.mp4"
+    if len(parts) == 1:
+        shutil.copy(parts[0], merged)
+    else:
+        durs = [probe_duration(p) for p in parts]
+        ins: list[str] = []
+        for p in parts:
+            ins += ["-i", str(p)]
+        fv, fa, off = "", "", 0.0
+        for i in range(1, len(parts)):
+            off += durs[i - 1] - XF
+            pv = "[0:v]" if i == 1 else f"[v{i - 1}]"
+            pa = "[0:a]" if i == 1 else f"[a{i - 1}]"
+            fv += f"{pv}[{i}:v]xfade=transition=fade:duration={XF}:offset={off:.3f}[v{i}];"
+            fa += f"{pa}[{i}:a]acrossfade=d={XF}[a{i}];"
+        n = len(parts) - 1
+        fc = (fv + fa).rstrip(";")
+        _run(["ffmpeg", "-y", "-loglevel", "error", *ins, "-filter_complex", fc, "-map", f"[v{n}]", "-map", f"[a{n}]",
+              "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-r", str(FPS),
+              "-c:a", "aac", "-b:a", "128k", "-ar", "44100", str(merged)], cwd=wd)
+    total = probe_duration(merged)
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged)]
+    vf_args: list[str] = []
     if watermark:
-        wm = out.parent / "wm.txt"
+        wm = wd / "wm.txt"
         wm.write_text(watermark, encoding="utf-8")
         vf = f"drawtext=textfile={wm.name}:fontfile={FONT_DIR / 'Tajawal-Bold.ttf'}:fontsize=30:fontcolor=white@0.7:x=w-tw-24:y=60:shadowcolor=black:shadowx=2:shadowy=2"
-        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged), "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
-              "-crf", "23", "-pix_fmt", "yuv420p", "-af", LOUDNORM, "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-              "-movflags", "+faststart", str(out)], cwd=out.parent)
+        vf_args = ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p"]
     else:
-        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(merged), "-c:v", "copy", "-af", LOUDNORM, "-c:a", "aac",
-              "-b:a", "128k", "-ar", "44100", "-movflags", "+faststart", str(out)], cwd=out.parent)
+        vf_args = ["-c:v", "copy"]
+    if music:
+        mus = wd / "music.wav"
+        gen_music(total, mus)
+        cmd += ["-i", str(mus)]
+        fc = ("[0:a]asplit[v1][v2];[1:a]volume=0.5[m];"
+              "[m][v2]sidechaincompress=threshold=0.02:ratio=10:attack=20:release=500[mc];"
+              f"[v1][mc]amix=inputs=2:duration=first:normalize=0,{LOUDNORM}[aout]")
+        cmd += ["-filter_complex", fc, "-map", "0:v", "-map", "[aout]"]
+    else:
+        cmd += ["-af", LOUDNORM]
+    cmd += vf_args + ["-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-movflags", "+faststart", str(out)]
+    _run(cmd, cwd=wd)
 
 
 # --------------------------------------------------------------------------- orchestrator
@@ -607,7 +651,7 @@ def make_video(job_dir: Path, opts: dict, progress: ProgressCb) -> dict:
 
     progress(92, "دمج المشاهد والتصدير")
     final = job_dir / "final.mp4"
-    concat(parts, final, watermark)
+    concat(parts, final, watermark, bool(opts.get("music", True)))
     shutil.rmtree(job_dir / "tmp", ignore_errors=True)
     if not final.exists() or final.stat().st_size < 10000:
         raise PipelineError("final video missing")

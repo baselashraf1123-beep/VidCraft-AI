@@ -44,6 +44,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: const Text('تظهر أعلى الفيديو. تساعد على نشر التطبيق.'),
         ),
       ),
+      const SizedBox(height: 12),
+      Card(
+        child: SwitchListTile(
+          value: s.music,
+          onChanged: s.setMusic,
+          title: const Text('موسيقى خلفية هادئة', style: TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: const Text('تُولَّد محلياً وتخفت تلقائياً أثناء الكلام.'),
+        ),
+      ),
       const SizedBox(height: 16),
       const Card(
         child: Padding(

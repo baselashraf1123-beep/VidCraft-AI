@@ -37,6 +37,7 @@ class AppState extends ChangeNotifier {
   List<StyleOpt> styles = fallbackStyles;
   bool? serverOk;
   bool watermark = true;
+  bool music = true;
 
   Api get api => Api(baseUrl);
 
@@ -44,6 +45,7 @@ class AppState extends ChangeNotifier {
     _p = await SharedPreferences.getInstance();
     baseUrl = _p.getString('baseUrl') ?? _defaultBase;
     watermark = _p.getBool('watermark') ?? true;
+    music = _p.getBool('music') ?? true;
     final raw = _p.getString('projects');
     if (raw != null) {
       try {
@@ -74,6 +76,12 @@ class AppState extends ChangeNotifier {
     baseUrl = v.trim();
     await _p.setString('baseUrl', baseUrl);
     await refreshServer();
+  }
+
+  Future<void> setMusic(bool v) async {
+    music = v;
+    await _p.setBool('music', v);
+    notifyListeners();
   }
 
   Future<void> setWatermark(bool v) async {
