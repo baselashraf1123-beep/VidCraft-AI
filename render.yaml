@@ -1,0 +1,17 @@
+# Render Blueprint: New > Blueprint > pick this repo. Free plan (card needed only for verification).
+services:
+  - type: web
+    name: vidcraft-ai
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PORT
+        value: "10000"
