@@ -193,3 +193,14 @@ def get_thumb(job_id: str):
     if not f.exists():
         raise HTTPException(404, "not ready")
     return FileResponse(f, media_type="image/jpeg")
+
+
+# --------------------------------------------------------------------------- web UI (optional)
+# If a Flutter web build exists (backend/web or ../build/web) serve it at "/", so a phone can just open
+# http://<pc-ip>:8000 in a browser. API routes above take priority.
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+for _d in (os.getenv("WEB_DIR"), str(Path(__file__).parent / "web"), str(Path(__file__).parent.parent / "build" / "web")):
+    if _d and (Path(_d) / "index.html").exists():
+        app.mount("/", StaticFiles(directory=_d, html=True), name="web")
+        break

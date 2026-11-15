@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 
-const _defaultBase = String.fromEnvironment('API_BASE', defaultValue: 'http://10.0.2.2:8000');
+const _envBase = String.fromEnvironment('API_BASE');
+// Web build served by the backend itself -> same origin; Android emulator -> host loopback.
+String get _defaultBase => _envBase.isNotEmpty ? _envBase : (kIsWeb ? Uri.base.origin : 'http://10.0.2.2:8000');
 
 class Project {
   final String id, title, idea, base;
