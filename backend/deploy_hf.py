@@ -1,4 +1,4 @@
-"""Deploy the backend to a free Hugging Face Space (Gradio SDK: free, no card; Docker SDK is paid).
+"""Deploy the backend to a free Hugging Face Space (needs HF PRO: free accounts get 402 for Gradio and Docker Spaces).
 Usage:  HF_TOKEN=hf_xxx PEXELS_API_KEY=xxx python3 deploy_hf.py [space-name]
 The HF token needs 'write' access (https://huggingface.co/settings/tokens).
 """

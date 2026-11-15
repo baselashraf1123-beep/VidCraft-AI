@@ -15,12 +15,13 @@ Needs `ffmpeg` on PATH. Optional keys: see `backend/.env.example` (export them a
     flutter build apk --release --dart-define=API_BASE=https://YOUR-SERVER
 
 ## Free hosting (backend) - verified status (Nov 2026)
-- Hugging Face Docker SDK is now paid; the **Gradio SDK** Space is free (no card). `backend/app.py`,
-  `backend/packages.txt` (ffmpeg) and `backend/SPACE_README.md` (copied to README.md) are ready:
-  `HF_TOKEN=hf_xxx PEXELS_API_KEY=... GEMINI_API_KEY=... python3 backend/deploy_hf.py vidcraft-ai`
-  (token needs *write* access; the deploy script has not been run against a live account yet).
-- Free Spaces sleep when idle. Videos are deleted after 6 h by design.
-- Render / Koyeb / Northflank / Fly.io need a payment card. Locally: `uvicorn main:app --host 0.0.0.0`.
+Tested for real with a valid write token (free account): Hugging Face answers
+`402 Payment Required: hosting Gradio and Docker Spaces on free cpu-basic requires a PRO subscription`.
+Only *static* Spaces are free, and they cannot run FFmpeg/Python.
+- Render / Koyeb / Northflank / Fly.io / Cloud Run need a payment card.
+- Zero-cost options that work: run the backend on your own PC/phone
+  (`uvicorn main:app --host 0.0.0.0 --port 8000`) and set the server URL in the app's Settings screen.
+- `deploy_hf.py` / `app.py` / `packages.txt` are kept for anyone with a HF PRO account.
 
 ## Known limits of the free tiers
 - Pollinations free text API: 1 script per ~45 s per server IP, so concurrent users queue.
