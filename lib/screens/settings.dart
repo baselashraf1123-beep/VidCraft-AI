@@ -35,6 +35,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ]),
       const SizedBox(height: 12),
       FilledButton(onPressed: () => s.setBase(_c.text), child: const Text('حفظ وفحص الاتصال')),
+      const SizedBox(height: 10),
+      OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        onPressed: s.discovering
+            ? null
+            : () async {
+                final ok = await s.discover();
+                if (!context.mounted) return;
+                if (ok) _c.text = s.baseUrl;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok ? 'تم العثور على الخادم: ${s.baseUrl}' : 'لم يتم العثور على خادم. تأكد أن الحاسوب يعمل عليه run_server وأن الهاتف على نفس الواي فاي.')));
+              },
+        icon: s.discovering
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.wifi_find),
+        label: Text(s.discovering ? 'جاري البحث ${(s.discoverProgress * 100).round()}%' : 'بحث تلقائي عن الخادم على الشبكة'),
+      ),
       const SizedBox(height: 24),
       Card(
         child: SwitchListTile(

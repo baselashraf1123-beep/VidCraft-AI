@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
+import 'discovery.dart';
 
 const _envBase = String.fromEnvironment('API_BASE');
 // Web build served by the backend itself -> same origin; Android emulator -> host loopback.
@@ -38,6 +39,8 @@ class AppState extends ChangeNotifier {
   List<VoiceOpt> voices = fallbackVoices;
   List<StyleOpt> styles = fallbackStyles;
   bool? serverOk;
+  bool discovering = false;
+  double discoverProgress = 0;
   bool watermark = true;
   bool music = true;
 
@@ -57,7 +60,30 @@ class AppState extends ChangeNotifier {
       }
     }
     notifyListeners();
-    refreshServer();
+    await refreshServer();
+    if (serverOk != true && !kIsWeb) discover();
+  }
+
+  /// Scans the local Wi-Fi for a VidCraft server and connects to the first one found.
+  Future<bool> discover() async {
+    if (discovering) return false;
+    discovering = true;
+    discoverProgress = 0;
+    notifyListeners();
+    try {
+      final found = await Discovery.scan(onProgress: (v) {
+        discoverProgress = v;
+        notifyListeners();
+      });
+      if (found.isNotEmpty) {
+        await setBase(found.first);
+        return true;
+      }
+      return false;
+    } finally {
+      discovering = false;
+      notifyListeners();
+    }
   }
 
   Future<void> refreshServer() async {

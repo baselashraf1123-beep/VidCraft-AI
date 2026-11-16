@@ -87,7 +87,7 @@ class ServerBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              checking ? 'جاري فحص الاتصال بالخادم...' : 'الخادم غير متصل. اضغط لإعادة المحاولة أو اضبط العنوان من الإعدادات.',
+              checking ? 'جاري فحص الاتصال بالخادم...' : 'الخادم غير متصل. اضغط لإعادة المحاولة، أو من الإعدادات استخدم "بحث تلقائي عن الخادم".',
               style: const TextStyle(fontSize: 12.5),
             ),
           ),

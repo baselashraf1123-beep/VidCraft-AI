@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../core/api.dart';
 import '../core/state.dart';
 import '../core/theme.dart';
@@ -23,6 +24,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable();
     _t = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
     _poll();
   }
@@ -30,6 +32,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   void dispose() {
     _t?.cancel();
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -66,7 +69,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       _t?.cancel();
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (++_fails >= 5) {
+      if (++_fails >= 15) {
         _t?.cancel();
         if (mounted) setState(() => _error = 'انقطع الاتصال بالخادم');
       }

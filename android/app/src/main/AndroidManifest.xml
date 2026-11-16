@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- حفظ الفيديو في المعرض على أندرويد 9 وأقل فقط (gal) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="VidCraft AI"
         android:usesCleartextTraffic="true"

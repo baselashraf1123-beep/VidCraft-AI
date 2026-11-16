@@ -10,4 +10,4 @@ pip install -q -r requirements.txt
 [ -f .env ] && { set -a; . ./.env; set +a; }
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo "Server URL for the app Settings screen:  http://${IP:-YOUR-IP}:8000"
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+exec python launcher.py "$@"

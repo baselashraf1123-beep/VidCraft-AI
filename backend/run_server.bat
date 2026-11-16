@@ -15,5 +15,5 @@ echo  Open on this PC:      http://localhost:8000
 echo  Open on your phone:   http://%IP%:8000   (same Wi-Fi)
 echo  App Settings URL:     http://%IP%:8000
 echo.
-uvicorn main:app --host 0.0.0.0 --port 8000
+python launcher.py
 pause

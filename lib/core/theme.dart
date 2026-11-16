@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 const kPurple = Color(0xFF6C3CE9);
 const kPurpleLight = Color(0xFFEFE9FD);
@@ -12,13 +11,13 @@ ThemeData buildTheme() {
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme, scaffoldBackgroundColor: kBg);
   return base.copyWith(
-    textTheme: GoogleFonts.cairoTextTheme(base.textTheme),
+    textTheme: base.textTheme.apply(fontFamily: 'Cairo'),
     appBarTheme: AppBarTheme(
       backgroundColor: kBg,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF1B1530)),
+      titleTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1B1530)),
     ),
     cardTheme: CardThemeData(
       color: Colors.white,
@@ -30,7 +29,7 @@ ThemeData buildTheme() {
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(54),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: GoogleFonts.cairo(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -43,12 +42,12 @@ ThemeData buildTheme() {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
       indicatorColor: kPurpleLight,
-      labelTextStyle: WidgetStatePropertyAll(GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600)),
+      labelTextStyle: WidgetStatePropertyAll(const TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w600)),
     ),
     chipTheme: ChipThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       side: BorderSide.none,
-      labelStyle: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w600),
+      labelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w600),
     ),
   );
 }

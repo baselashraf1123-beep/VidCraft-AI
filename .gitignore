@@ -54,3 +54,8 @@ android/key.properties
 android/*.jks
 *.jks
 VidCraft-Local.zip
+
+# local helper binaries / bundled web copy
+backend/cloudflared
+backend/web/
+backend/outputs/

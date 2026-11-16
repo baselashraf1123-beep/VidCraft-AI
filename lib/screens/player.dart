@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../core/media.dart';
 import 'package:video_player/video_player.dart';
 import '../core/state.dart';
 import '../core/theme.dart';
@@ -41,12 +41,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.dispose();
   }
 
-  Future<void> _download() async {
-    final ok = await launchUrl(Uri.parse(widget.project.videoUrl), mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح رابط التحميل')));
+  bool _busy = false;
+
+  Future<void> _run(Future<String?> Function() task) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final msg = await task();
+      if (mounted && msg != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إتمام العملية. تأكد أن الخادم ما زال يعمل ثم أعد المحاولة.')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
+
+  Future<void> _download() => _run(() => MediaActions.saveToGallery(widget.project.videoUrl, 'vidcraft_${widget.project.id}'));
+
+  Future<void> _share() => _run(() async {
+        await MediaActions.share(widget.project.videoUrl, 'vidcraft_${widget.project.id}', widget.project.title);
+        return null;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +103,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        FilledButton.icon(onPressed: _download, icon: const Icon(Icons.download_rounded), label: const Text('تحميل الفيديو')),
+        FilledButton.icon(
+          onPressed: _busy ? null : _download,
+          icon: _busy
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.download_rounded),
+          label: Text(_busy ? 'جاري التنفيذ...' : 'حفظ في المعرض'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+          onPressed: _busy ? null : _share,
+          icon: const Icon(Icons.share_rounded),
+          label: const Text('مشاركة الفيديو'),
+        ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),

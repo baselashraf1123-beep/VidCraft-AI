@@ -4,3 +4,4 @@ edge-tts>=6.1.12
 requests>=2.31
 pillow>=10.0
 python-multipart>=0.0.9
+segno>=1.6

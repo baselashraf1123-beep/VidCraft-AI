@@ -23,6 +23,14 @@ Needs `ffmpeg` on PATH. Optional keys: see `backend/.env.example` (export them a
    - **Android APK:** install it, open Settings, set the server URL to the printed address (`http://PC-IP:8000`). Cleartext HTTP is allowed for this. On the emulator the default `http://10.0.2.2:8000` works as is.
    - Build the web UI once: `flutter build web --release`.
 
+## Phone-ready features (v1.1)
+- **Auto-discovery**: on Android the app scans the local Wi-Fi (/24) for `/api/health` (`service == vidcraft-ai`) and connects by itself. Manual URL is still available in Settings.
+- **Launcher with QR**: `backend/run_server.sh` (Linux/macOS/Termux) or `run_server.bat` (Windows) starts the server, prints LAN URLs and a QR code. Open the QR on any phone browser to use the built-in web UI (no APK needed).
+- **Outside your Wi-Fi**: `./run_server.sh --tunnel` starts a free Cloudflare quick tunnel (put `cloudflared` on PATH or in `backend/`). The `https://*.trycloudflare.com` URL changes on every run.
+- **Save / share**: the player saves the MP4 to the gallery (album "VidCraft") via `gal`, or shares it through the system share sheet.
+- **Offline UI font**: Cairo is bundled (no network font download), screen stays awake during generation.
+- **APK**: `flutter build apk --release --split-per-abi` (arm64-v8a is the right file for almost every modern phone). Signing uses `android/key.properties` (never committed; back it up).
+
 ## Hosting status (verified Nov 2026)
 - Hugging Face: `402 Payment Required` for Gradio/Docker Spaces on a free account (needs PRO), even with a card on file.
 - Render / Koyeb / Northflank / Fly.io / Cloud Run need a payment card; `render.yaml` is provided for Render.
